@@ -201,17 +201,21 @@
         .pair-box-names { font-size: 13px; font-weight: 700; color: var(--green); }
         .vs-label { font-size: 13px; font-weight: 800; color: var(--gray); flex-shrink: 0; }
 
-        /* スコア入力：スクロールなし固定レイアウト */
-        #page-scoring {
-            padding: 10px 12px;
-            flex-direction: column;
-            height: calc(100svh - var(--header-h, 88px));
-            overflow: hidden;
-            gap: 8px;
-        }
-        /* activeの時だけflex表示（display:noneを上書きしないよう分離） */
+        /* スコア入力：position:fixedでスクロール完全防止 */
         #page-scoring.active {
             display: flex;
+            position: fixed;
+            top: var(--header-h, 88px);
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 430px;
+            bottom: 0;
+            flex-direction: column;
+            padding: 10px 12px;
+            gap: 8px;
+            overflow: hidden;
+            background: var(--bg);
         }
         #page-scoring .card {
             flex: 1;
@@ -305,8 +309,7 @@
 <body>
 
 <div class="header">
-    <h1>⛳ ゴルフスコア計算</h1>
-    <div class="header-ver">Ver_1.2</div>
+    <h1>⛳ ゴルフスコア計算</h1><div class="header-ver">Ver_1.3</div>
     <p id="headerSub">プレイヤー設定</p>
 </div>
 
@@ -522,6 +525,8 @@ function goToPage(id) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
     window.scrollTo(0, 0);
+    // スコア入力画面ではbodyスクロールを完全停止
+    document.body.style.overflow = (id === 'page-scoring') ? 'hidden' : '';
 }
 
 // ===== セットアップ → パー設定 =====
