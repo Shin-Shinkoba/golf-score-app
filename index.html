@@ -191,45 +191,74 @@
         .par-btn.selected { background: var(--green); color: white; border-color: var(--green); }
 
         /* ===== スコア入力 ===== */
-        .hole-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 14px; }
-        .hole-num { font-size: 36px; font-weight: 800; color: var(--green); line-height: 1; }
-        .hole-num-label { font-size: 12px; color: var(--gray); }
-        .hole-par-badge { background: var(--bg); border-radius: 8px; padding: 6px 14px; font-size: 15px; font-weight: 700; color: var(--green); }
-        .pair-row { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
-        .pair-box { flex: 1; border-radius: 10px; padding: 10px; text-align: center; border: 1.5px solid var(--border); background: var(--bg); }
-        .pair-box-label { font-size: 11px; color: var(--gray); margin-bottom: 3px; }
-        .pair-box-names { font-size: 14px; font-weight: 700; color: var(--green); }
+        .hole-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px; }
+        .hole-num { font-size: 32px; font-weight: 800; color: var(--green); line-height: 1; }
+        .hole-num-label { font-size: 11px; color: var(--gray); }
+        .hole-par-badge { background: var(--bg); border-radius: 8px; padding: 5px 12px; font-size: 14px; font-weight: 700; color: var(--green); }
+        .pair-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .pair-box { flex: 1; border-radius: 10px; padding: 8px; text-align: center; border: 1.5px solid var(--border); background: var(--bg); }
+        .pair-box-label { font-size: 10px; color: var(--gray); margin-bottom: 2px; }
+        .pair-box-names { font-size: 13px; font-weight: 700; color: var(--green); }
         .vs-label { font-size: 13px; font-weight: 800; color: var(--gray); flex-shrink: 0; }
-        /* スコア入力：縦一列レイアウト */
-        .score-list { display: flex; flex-direction: column; gap: 0; }
+
+        /* スコア入力：スクロールなし固定レイアウト */
+        #page-scoring {
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            height: calc(100svh - var(--header-h, 88px));
+            overflow: hidden;
+            gap: 8px;
+        }
+        #page-scoring .card {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 0;
+            padding: 12px 14px;
+            overflow: hidden;
+        }
+        #page-scoring .btn {
+            flex-shrink: 0;
+            padding: 14px;
+            margin-bottom: 0;
+        }
+        .score-list {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-height: 0;
+        }
         .score-row {
+            flex: 1;
+            min-height: 0;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 0;
             border-bottom: 1px solid var(--border);
         }
         .score-row:last-child { border-bottom: none; }
         .score-row-info { flex: 1; min-width: 0; }
-        .score-row-name { font-size: 16px; font-weight: 700; color: var(--text); }
-        .score-row-pair { font-size: 11px; color: var(--light-green); font-weight: 600; margin-top: 2px; }
-        .score-counter { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        .score-row-name { font-size: 15px; font-weight: 700; color: var(--text); }
+        .score-row-pair { font-size: 10px; color: var(--light-green); font-weight: 600; margin-top: 1px; }
+        .score-counter { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
         .cnt-btn {
-            width: 56px; height: 56px; border-radius: 50%;
+            width: 54px; height: 54px; border-radius: 50%;
             border: 2.5px solid var(--green); background: white;
-            font-size: 28px; color: var(--green); cursor: pointer;
+            font-size: 26px; color: var(--green); cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             font-weight: 700; line-height: 1;
             box-shadow: 0 2px 6px rgba(45,106,79,0.15);
         }
         .cnt-btn:active { background: var(--bg); transform: scale(0.95); }
-        .score-val-wrap { text-align: center; min-width: 48px; }
-        .cnt-val { font-size: 36px; font-weight: 800; line-height: 1; }
+        .score-val-wrap { text-align: center; min-width: 44px; }
+        .cnt-val { font-size: 34px; font-weight: 800; line-height: 1; }
         .cnt-val.birdie { color: var(--light-green); }
         .cnt-val.eagle { color: #f59e0b; }
         .cnt-val.bogey { color: var(--gray); }
         .cnt-val.double { color: var(--red); }
-        .score-label { font-size: 11px; margin-top: 3px; font-weight: 600; height: 15px; }
+        .score-label { font-size: 11px; margin-top: 2px; font-weight: 600; height: 14px; }
 
         /* ===== ホール結果 ===== */
         .result-banner { border-radius: 14px; padding: 20px; margin-bottom: 14px; text-align: center; color: white; }
@@ -274,7 +303,7 @@
 
 <div class="header">
     <h1>⛳ ゴルフスコア計算</h1>
-    <div class="header-ver">Ver_1.0</div>
+    <div class="header-ver">Ver_1.1</div>
     <p id="headerSub">プレイヤー設定</p>
 </div>
 
@@ -842,6 +871,14 @@ function resetGame() {
 // ===== 初期化 =====
 renderMemberList();
 updateAllDropdowns();
+
+// ヘッダーの高さをCSS変数に反映（スコア画面のスクロール防止）
+function updateHeaderHeight() {
+    const h = document.querySelector('.header').offsetHeight;
+    document.documentElement.style.setProperty('--header-h', h + 'px');
+}
+updateHeaderHeight();
+window.addEventListener('resize', updateHeaderHeight);
 </script>
 </body>
 </html>
