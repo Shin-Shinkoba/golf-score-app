@@ -252,6 +252,17 @@
         .rank-pos.first { color: #f59e0b; }
         .rank-name { flex: 1; font-size: 16px; font-weight: 600; }
         .rank-pts { font-size: 18px; font-weight: 700; color: var(--green); }
+        .rank-gain {
+            font-size: 13px;
+            font-weight: 800;
+            color: var(--red);
+            margin-left: 8px;
+            background: #fff0f0;
+            border: 1.5px solid var(--red);
+            border-radius: 20px;
+            padding: 2px 8px;
+            white-space: nowrap;
+        }
         .history-row { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
         .history-row:last-child { border-bottom: none; }
         .history-hole { color: var(--gray); margin-bottom: 2px; }
@@ -545,7 +556,13 @@ function startGame() {
 function getPairing(h) { return PAIRINGS[h % 3]; }
 function pairScore(s1, s2) { return Math.min(s1, s2) * 10 + Math.max(s1, s2); }
 function reverseDigits(n) { return (n % 10) * 10 + Math.floor(n / 10); }
-function isBirdie(s, par) { return s <= par - 1; }
+// ペアの中で最高ボーナスレベルを返す（0:なし 1:バーディ 2:イーグル以上）
+function getBestLevel(s1, s2, par) {
+    const best = Math.min(s1, s2);
+    if (best <= par - 2) return 2; // イーグル以上
+    if (best <= par - 1) return 1; // バーディ
+    return 0;
+}
 function scoreLabel(s, par) {
     const d = s - par;
     if (d <= -2) return 'イーグル';
@@ -645,28 +662,45 @@ function confirmHole() {
 
     const ps1 = pairScore(s[p1], s[p2]);
     const ps2 = pairScore(s[p3], s[p4]);
-    const bp1 = isBirdie(s[p1], par) || isBirdie(s[p2], par);
-    const bp2 = isBirdie(s[p3], par) || isBirdie(s[p4], par);
+    const level1 = getBestLevel(s[p1], s[p2], par);
+    const level2 = getBestLevel(s[p3], s[p4], par);
 
     const result = {
         hole: h + 1, par, scores: [...s],
         pair1: [p1, p2], pair2: [p3, p4],
         rawPs1: ps1, rawPs2: ps2, dispPs1: ps1, dispPs2: ps2,
-        birdieBonus: false, winner: 0, winnerPlayers: [], pointsAwarded: 0
+        bonus: 'none', // 'none' | 'birdie' | 'eagle' | 'cancel'
+        winner: 0, winnerPlayers: [], pointsAwarded: 0
     };
 
     if (ps1 < ps2) {
         result.winner = 1; result.winnerPlayers = [p1, p2];
         let loser = ps2;
-        if (bp1 && !bp2) { loser = reverseDigits(ps2); result.birdieBonus = true; result.dispPs2 = loser; }
-        result.pointsAwarded = loser - ps1;
+        if (level1 > 0 && level1 === level2) {
+            // 同レベル → 相殺
+            result.bonus = 'cancel';
+        } else if (level1 > level2) {
+            // 勝ちペアのボーナスが上 → 反転
+            loser = reverseDigits(ps2);
+            result.dispPs2 = loser;
+            result.bonus = level1 >= 2 ? 'eagle' : 'birdie';
+        }
+        const diff = loser - ps1;
+        result.pointsAwarded = result.bonus === 'eagle' ? diff * 2 : diff;
         state.points[p1] += result.pointsAwarded;
         state.points[p2] += result.pointsAwarded;
     } else if (ps2 < ps1) {
         result.winner = 2; result.winnerPlayers = [p3, p4];
         let loser = ps1;
-        if (bp2 && !bp1) { loser = reverseDigits(ps1); result.birdieBonus = true; result.dispPs1 = loser; }
-        result.pointsAwarded = loser - ps2;
+        if (level2 > 0 && level2 === level1) {
+            result.bonus = 'cancel';
+        } else if (level2 > level1) {
+            loser = reverseDigits(ps1);
+            result.dispPs1 = loser;
+            result.bonus = level2 >= 2 ? 'eagle' : 'birdie';
+        }
+        const diff = loser - ps2;
+        result.pointsAwarded = result.bonus === 'eagle' ? diff * 2 : diff;
         state.points[p3] += result.pointsAwarded;
         state.points[p4] += result.pointsAwarded;
     }
@@ -679,52 +713,68 @@ function confirmHole() {
 
 // ===== ホール結果表示 =====
 function renderHoleResult(r) {
-    const { hole, par, pair1, pair2, rawPs1, rawPs2, dispPs1, dispPs2, birdieBonus, winner, winnerPlayers, pointsAwarded, scores } = r;
+    const { hole, par, pair1, pair2, rawPs1, rawPs2, dispPs1, dispPs2, bonus, winner, winnerPlayers, pointsAwarded, scores } = r;
     const p1names = pair1.map(i => state.players[i]).join(' & ');
     const p2names = pair2.map(i => state.players[i]).join(' / ');
+
+    const bonusBadge = {
+        'birdie': '<div class="result-birdie-badge">🐦 バーディボーナス！（反転）</div>',
+        'eagle':  '<div class="result-birdie-badge">🦅 イーグルボーナス！（反転×2）</div>',
+        'cancel': '<div class="result-birdie-badge">🔁 バーディ相殺</div>',
+        'none':   ''
+    }[bonus] || '';
 
     let bannerHtml = winner === 0
         ? `<div class="result-banner draw">
                 <div class="result-hole-label">${hole}ホール目 / Par ${par}</div>
                 <div class="result-winner-text">引き分け</div>
+                ${bonusBadge}
            </div>`
         : `<div class="result-banner win">
                 <div class="result-hole-label">${hole}ホール目 / Par ${par}</div>
                 <div class="result-winner-text">${winnerPlayers.map(i => state.players[i]).join(' & ')} チームの勝利！</div>
-                ${birdieBonus ? '<div class="result-birdie-badge">🦅 バーディボーナス適用！</div>' : ''}
+                ${bonusBadge}
                 <div class="result-points">各自 +${pointsAwarded}ポイント</div>
            </div>`;
 
+    const hasReverse = bonus === 'birdie' || bonus === 'eagle';
     const isWin1 = winner === 1, isWin2 = winner === 2;
-    const arrow1 = birdieBonus && isWin2 ? `<div class="score-compare-arrow">${rawPs1} → ${dispPs1}</div>` : '';
-    const arrow2 = birdieBonus && isWin1 ? `<div class="score-compare-arrow">${rawPs2} → ${dispPs2}</div>` : '';
+    const arrow1 = hasReverse && isWin2 ? `<div class="score-compare-arrow">${rawPs1} → ${dispPs1}${bonus === 'eagle' ? ' ×2' : ''}</div>` : '';
+    const arrow2 = hasReverse && isWin1 ? `<div class="score-compare-arrow">${rawPs2} → ${dispPs2}${bonus === 'eagle' ? ' ×2' : ''}</div>` : '';
 
     const compareHtml = `
         <div class="score-compare">
             <div class="score-compare-box ${isWin1 ? 'winner-box' : ''}">
                 <div class="score-compare-names">${p1names}</div>
-                <div class="score-compare-val ${isWin1 ? 'win-val' : ''}">${isWin2 && birdieBonus ? dispPs1 : rawPs1}</div>
+                <div class="score-compare-val ${isWin1 ? 'win-val' : ''}">${isWin2 && hasReverse ? dispPs1 : rawPs1}</div>
                 ${arrow1}
                 <div class="score-compare-indiv">${pair1.map(i => `${state.players[i]}:${scores[i]}`).join(' / ')}</div>
             </div>
             <div class="vs-label">VS</div>
             <div class="score-compare-box ${isWin2 ? 'winner-box' : ''}">
                 <div class="score-compare-names">${p2names}</div>
-                <div class="score-compare-val ${isWin2 ? 'win-val' : ''}">${isWin1 && birdieBonus ? dispPs2 : rawPs2}</div>
+                <div class="score-compare-val ${isWin2 ? 'win-val' : ''}">${isWin1 && hasReverse ? dispPs2 : rawPs2}</div>
                 ${arrow2}
                 <div class="score-compare-indiv">${pair2.map(i => `${state.players[i]}:${scores[i]}`).join(' / ')}</div>
             </div>
         </div>`;
 
-    const standings = state.players.map((name, i) => ({ name, pts: state.points[i] }))
+    const standings = state.players.map((name, i) => ({ name, pts: state.points[i], idx: i }))
         .sort((a, b) => b.pts - a.pts);
 
-    const rankingHtml = standings.map((s, i) => `
+    const rankingHtml = standings.map((s, i) => {
+        const gained = winnerPlayers.includes(s.idx) ? pointsAwarded : 0;
+        const gainBadge = gained > 0
+            ? `<div class="rank-gain">+${gained}pt ▲</div>`
+            : '';
+        return `
         <div class="ranking-row">
             <div class="rank-pos ${i === 0 ? 'first' : ''}">${i + 1}</div>
             <div class="rank-name">${s.name}</div>
             <div class="rank-pts">${s.pts}pt</div>
-        </div>`).join('');
+            ${gainBadge}
+        </div>`;
+    }).join('');
 
     document.getElementById('holeResultBody').innerHTML = `
         ${bannerHtml}
@@ -766,7 +816,8 @@ function showFinal() {
         const p2n = r.pair2.map(i => state.players[i]).join('&');
         let res = '引き分け';
         if (r.winner !== 0) {
-            res = `${r.winnerPlayers.map(i => state.players[i]).join('&')} +${r.pointsAwarded}pt${r.birdieBonus ? ' 🦅' : ''}`;
+            const bonusMark = { 'birdie': ' 🐦', 'eagle': ' 🦅×2', 'cancel': ' 🔁', 'none': '' }[r.bonus] || '';
+            res = `${r.winnerPlayers.map(i => state.players[i]).join('&')} +${r.pointsAwarded}pt${bonusMark}`;
         }
         return `<div class="history-row">
             <div class="history-hole">${r.hole}H (Par${r.par})　${p1n}(${r.rawPs1}) vs ${p2n}(${r.rawPs2})</div>
