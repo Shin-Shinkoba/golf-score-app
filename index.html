@@ -199,25 +199,36 @@
         .pair-box-label { font-size: 11px; color: var(--gray); margin-bottom: 3px; }
         .pair-box-names { font-size: 14px; font-weight: 700; color: var(--green); }
         .vs-label { font-size: 13px; font-weight: 800; color: var(--gray); flex-shrink: 0; }
-        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .score-item { background: var(--bg); border-radius: 12px; padding: 12px 8px; text-align: center; }
-        .score-item-pair { font-size: 10px; color: var(--light-green); font-weight: 600; margin-bottom: 2px; }
-        .score-item-name { font-size: 13px; color: var(--gray); margin-bottom: 8px; font-weight: 600; }
-        .score-counter { display: flex; align-items: center; justify-content: center; gap: 10px; }
+        /* スコア入力：縦一列レイアウト */
+        .score-list { display: flex; flex-direction: column; gap: 0; }
+        .score-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .score-row:last-child { border-bottom: none; }
+        .score-row-info { flex: 1; min-width: 0; }
+        .score-row-name { font-size: 16px; font-weight: 700; color: var(--text); }
+        .score-row-pair { font-size: 11px; color: var(--light-green); font-weight: 600; margin-top: 2px; }
+        .score-counter { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
         .cnt-btn {
-            width: 38px; height: 38px; border-radius: 50%;
-            border: 2px solid var(--green); background: white;
-            font-size: 22px; color: var(--green); cursor: pointer;
+            width: 56px; height: 56px; border-radius: 50%;
+            border: 2.5px solid var(--green); background: white;
+            font-size: 28px; color: var(--green); cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             font-weight: 700; line-height: 1;
+            box-shadow: 0 2px 6px rgba(45,106,79,0.15);
         }
-        .cnt-btn:active { background: var(--bg); }
-        .cnt-val { font-size: 32px; font-weight: 800; min-width: 40px; text-align: center; line-height: 1; }
+        .cnt-btn:active { background: var(--bg); transform: scale(0.95); }
+        .score-val-wrap { text-align: center; min-width: 48px; }
+        .cnt-val { font-size: 36px; font-weight: 800; line-height: 1; }
         .cnt-val.birdie { color: var(--light-green); }
         .cnt-val.eagle { color: #f59e0b; }
         .cnt-val.bogey { color: var(--gray); }
         .cnt-val.double { color: var(--red); }
-        .score-label { font-size: 11px; margin-top: 4px; height: 16px; font-weight: 600; }
+        .score-label { font-size: 11px; margin-top: 3px; font-weight: 600; height: 15px; }
 
         /* ===== ホール結果 ===== */
         .result-banner { border-radius: 14px; padding: 20px; margin-bottom: 14px; text-align: center; color: white; }
@@ -340,7 +351,7 @@
             <div class="hole-par-badge" id="dispPar">Par 4</div>
         </div>
         <div class="pair-row" id="dispPairing"></div>
-        <div class="score-grid" id="scoreGrid"></div>
+        <div class="score-list" id="scoreGrid"></div>
     </div>
     <button class="btn" onclick="confirmHole()">このホールを確定 →</button>
 </div>
@@ -575,26 +586,33 @@ function renderScoring() {
         </div>
     `;
 
+    // ペアラベルを全プレイヤー分作成
     const pairLabel = {};
-    pairLabel[p1] = pairLabel[p2] = `${state.players[p1]}・${state.players[p2]}組`;
-    pairLabel[p3] = pairLabel[p4] = `${state.players[p3]}・${state.players[p4]}組`;
+    pairLabel[p1] = pairLabel[p2] = `${state.players[p1]}・${state.players[p2]}ペア`;
+    pairLabel[p3] = pairLabel[p4] = `${state.players[p3]}・${state.players[p4]}ペア`;
 
-    document.getElementById('scoreGrid').innerHTML = order.map(pi => {
+    // 常に0→1→2→3の固定順で表示
+    const fixedOrder = [0, 1, 2, 3];
+    document.getElementById('scoreGrid').innerHTML = fixedOrder.map(pi => {
         const s = state.scores[h][pi] || par;
         state.scores[h][pi] = s;
         const cls = scoreClass(s, par);
         const lbl = scoreLabel(s, par);
         const color = cls==='birdie'?'#52b788':cls==='eagle'?'#f59e0b':cls==='double'?'#ef4444':'#9ca3af';
         return `
-            <div class="score-item">
-                <div class="score-item-pair">${pairLabel[pi]}</div>
-                <div class="score-item-name">${state.players[pi]}</div>
+            <div class="score-row">
+                <div class="score-row-info">
+                    <div class="score-row-name">${state.players[pi]}</div>
+                    <div class="score-row-pair">${pairLabel[pi]}</div>
+                </div>
                 <div class="score-counter">
                     <button class="cnt-btn" onclick="changeScore(${pi}, -1)">－</button>
-                    <div class="cnt-val ${cls}" id="sv-${pi}">${s}</div>
+                    <div class="score-val-wrap">
+                        <div class="cnt-val ${cls}" id="sv-${pi}">${s}</div>
+                        <div class="score-label" id="sl-${pi}" style="color:${color}">${lbl}</div>
+                    </div>
                     <button class="cnt-btn" onclick="changeScore(${pi}, 1)">＋</button>
                 </div>
-                <div class="score-label" id="sl-${pi}" style="color:${color}">${lbl}</div>
             </div>
         `;
     }).join('');
