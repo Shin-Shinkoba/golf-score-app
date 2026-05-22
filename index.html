@@ -204,11 +204,14 @@
         /* スコア入力：スクロールなし固定レイアウト */
         #page-scoring {
             padding: 10px 12px;
-            display: flex;
             flex-direction: column;
             height: calc(100svh - var(--header-h, 88px));
             overflow: hidden;
             gap: 8px;
+        }
+        /* activeの時だけflex表示（display:noneを上書きしないよう分離） */
+        #page-scoring.active {
+            display: flex;
         }
         #page-scoring .card {
             flex: 1;
@@ -303,7 +306,7 @@
 
 <div class="header">
     <h1>⛳ ゴルフスコア計算</h1>
-    <div class="header-ver">Ver_1.1</div>
+    <div class="header-ver">Ver_1.2</div>
     <p id="headerSub">プレイヤー設定</p>
 </div>
 
