@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>ゴルフスコア計算</title>
     <style>
         :root {
@@ -16,6 +18,9 @@
             --red: #ef4444;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        html {
+            overscroll-behavior: none; /* プルリフレッシュ防止 */
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
             background: var(--bg);
@@ -24,6 +29,7 @@
             margin: 0 auto;
             min-height: 100vh;
             padding-bottom: 40px;
+            overscroll-behavior: none; /* プルリフレッシュ防止 */
         }
         .header {
             background: url('kga-header.jpg') center/cover no-repeat;
@@ -316,7 +322,7 @@
 
 <div class="header">
     <h1>⛳ ゴルフスコア計算</h1>
-    <div class="header-ver">Ver_1.5</div>
+    <div class="header-ver">Ver_1.6</div>
     <p id="headerSub">プレイヤー設定</p>
 </div>
 
@@ -912,6 +918,21 @@ function resetGame() {
     document.getElementById('headerSub').textContent = 'プレイヤー設定';
     goToPage('page-setup');
 }
+
+// ===== iOSプルリフレッシュ防止 =====
+// overscroll-behaviorが効かない古いiOS Safari向けのJS補強
+let _touchStartY = 0;
+document.addEventListener('touchstart', function(e) {
+    _touchStartY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+    const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+    const pullingDown = e.touches[0].clientY > _touchStartY;
+    // ページ最上部でさらに引き下げた時だけ防止（通常スクロールは許可）
+    if (scrollTop === 0 && pullingDown) {
+        e.preventDefault();
+    }
+}, { passive: false });
 
 // ===== 初期化 =====
 renderMemberList();
