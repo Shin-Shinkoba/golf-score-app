@@ -319,6 +319,15 @@
         }
         .history-row { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
         .history-row:last-child { border-bottom: none; }
+        /* ===== ペリカ計算 ===== */
+        .pelika-row { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .pelika-row:last-child { border-bottom: none; }
+        .pelika-rank { font-size: 15px; font-weight: 800; width: 40px; color: var(--gray); }
+        .pelika-name { flex: 1; font-size: 16px; font-weight: 600; }
+        .pelika-val { font-size: 18px; font-weight: 700; }
+        .pelika-pos { color: var(--green); }
+        .pelika-neg { color: var(--red); }
+        .pelika-zero { color: var(--gray); }
         .history-hole { color: var(--gray); margin-bottom: 2px; }
         .history-result { font-weight: 600; }
     </style>
@@ -447,6 +456,10 @@
     <div class="card">
         <h2>最終順位</h2>
         <div id="finalRanking"></div>
+    </div>
+    <div class="card">
+        <h2>ペリカ計算</h2>
+        <div id="finalPelika"></div>
     </div>
     <div class="card">
         <h2>ホール別履歴</h2>
@@ -797,6 +810,27 @@ function confirmHole() {
     goToPage('page-hole-result');
 }
 
+// ===== ペリカ計算 =====
+// 計算式: 各自のペリカ = 4 × 自分のpt − 全員の合計pt
+// 例) 30/20/10/0pt → 合計60 → 60/20/−20/−60ペリカ
+function buildPelikaHtml() {
+    const total = state.points.reduce((a, b) => a + b, 0);
+    const data = state.players
+        .map((name, i) => ({ name, pelika: 4 * state.points[i] - total }))
+        .sort((a, b) => b.pelika - a.pelika);
+
+    return data.map((d, i) => {
+        const cls = d.pelika > 0 ? 'pelika-pos' : d.pelika < 0 ? 'pelika-neg' : 'pelika-zero';
+        const sign = d.pelika > 0 ? '+' : '';
+        return `
+        <div class="pelika-row">
+            <div class="pelika-rank">${i + 1}位</div>
+            <div class="pelika-name">${d.name}</div>
+            <div class="pelika-val ${cls}">${sign}${d.pelika}ペリカ</div>
+        </div>`;
+    }).join('');
+}
+
 // ===== ホール結果表示 =====
 function renderHoleResult(r) {
     const { hole, par, pair1, pair2, rawPs1, rawPs2, dispPs1, dispPs2, bonus, winner, winnerPlayers, pointsAwarded, scores } = r;
@@ -866,6 +900,7 @@ function renderHoleResult(r) {
         ${bannerHtml}
         <div class="card"><h2>スコア詳細</h2>${compareHtml}</div>
         <div class="card"><h2>現在の順位</h2>${rankingHtml}</div>
+        <div class="card"><h2>ペリカ計算</h2>${buildPelikaHtml()}</div>
     `;
 }
 
@@ -896,6 +931,7 @@ function showFinal() {
             <div class="rank-name">${s.name}</div>
             <div class="rank-pts">${s.pts}pt</div>
         </div>`).join('');
+    document.getElementById('finalPelika').innerHTML = buildPelikaHtml();
     document.getElementById('holeHistory').innerHTML = state.holeResults.map(r => {
         if (!r) return '';
         const p1n = r.pair1.map(i => state.players[i]).join('&');
