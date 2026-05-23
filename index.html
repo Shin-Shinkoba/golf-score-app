@@ -251,11 +251,28 @@
         .cnt-btn:active { background: #e8f4ef; transform: scale(0.95); }
         .score-val-wrap { text-align: center; min-width: 44px; }
         .cnt-val { font-size: 34px; font-weight: 800; line-height: 1; }
-        .cnt-val.birdie { color: var(--light-green); }
+        .cnt-val.albatross { color: #c084fc; }
         .cnt-val.eagle { color: #f59e0b; }
+        .cnt-val.birdie { color: var(--light-green); }
         .cnt-val.bogey { color: var(--gray); }
         .cnt-val.double { color: var(--red); }
+        .cnt-val.triple { color: #991b1b; }
         .score-label { font-size: 11px; margin-top: 2px; font-weight: 600; height: 14px; }
+
+        /* ===== スコア上限選択 ===== */
+        .limit-btn-group { display: flex; gap: 10px; }
+        .limit-btn {
+            flex: 1; padding: 12px 8px; border: 2px solid #d1d5db;
+            border-radius: 10px; background: #fff; color: #6b7280;
+            font-size: 15px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; line-height: 1.5; text-align: center;
+        }
+        .limit-btn span { font-size: 11px; font-weight: 400; display: block; }
+        .limit-btn.active {
+            border-color: var(--primary);
+            background: #f0fdf4; color: var(--primary);
+        }
+        .limit-btn:not(.active):hover { border-color: #9ca3af; }
 
         /* ===== ホール結果 ===== */
         .result-banner { border-radius: 14px; padding: 20px; margin-bottom: 14px; text-align: center; color: white; }
@@ -365,6 +382,19 @@
         </div>
     </div>
 
+    <!-- スコア上限設定 -->
+    <div class="card">
+        <h2>個人スコア上限</h2>
+        <div class="limit-btn-group">
+            <button id="limitBtn9" class="limit-btn active" onclick="setScoreLimit(9)">
+                最大 9打<br><span>1桁固定（推奨）</span>
+            </button>
+            <button id="limitBtnInf" class="limit-btn" onclick="setScoreLimit(Infinity)">
+                上限なし<br><span>10打以上も入力可</span>
+            </button>
+        </div>
+    </div>
+
     <button class="btn" onclick="goToPars()">次へ：パー設定 →</button>
 </div>
 
@@ -422,7 +452,8 @@ const state = {
     scores: Array(18).fill(null).map(() => [0, 0, 0, 0]),
     points: [0, 0, 0, 0],
     currentHole: 0,
-    holeResults: []
+    holeResults: [],
+    maxScore: 9  // 個人スコアの上限（9=1桁固定、Infinity=上限なし）
 };
 
 const PAIRINGS = [
@@ -584,7 +615,11 @@ function startGame() {
 // ===== スコア入力 =====
 function getPairing(h) { return PAIRINGS[h % 3]; }
 function pairScore(s1, s2) { return Math.min(s1, s2) * 10 + Math.max(s1, s2); }
-function reverseDigits(n) { return (n % 10) * 10 + Math.floor(n / 10); }
+// バーディ/イーグル反転: 元のスコアから「大×10＋小」で計算し直す
+// 例) 通常 pairScore(5,10)=60 → 反転 reversePairScore(5,10)=105
+function reversePairScore(s1, s2) {
+    return Math.max(s1, s2) * 10 + Math.min(s1, s2);
+}
 // ペアの中で最高ボーナスレベルを返す（0:なし 1:バーディ 2:イーグル以上）
 function getBestLevel(s1, s2, par) {
     const best = Math.min(s1, s2);
@@ -594,19 +629,23 @@ function getBestLevel(s1, s2, par) {
 }
 function scoreLabel(s, par) {
     const d = s - par;
-    if (d <= -2) return 'イーグル';
+    if (d <= -3) return 'アルバトロス';
+    if (d === -2) return 'イーグル';
     if (d === -1) return 'バーディ';
     if (d === 0) return 'パー';
     if (d === 1) return 'ボギー';
     if (d === 2) return 'ダブルボギー';
+    if (d === 3) return 'トリプルボギー';
     return `+${d}`;
 }
 function scoreClass(s, par) {
     const d = s - par;
-    if (d <= -2) return 'eagle';
+    if (d <= -3) return 'albatross';
+    if (d === -2) return 'eagle';
     if (d === -1) return 'birdie';
     if (d === 1) return 'bogey';
-    if (d >= 2) return 'double';
+    if (d === 2) return 'double';
+    if (d >= 3) return 'triple';
     return '';
 }
 
@@ -644,7 +683,7 @@ function renderScoring() {
         state.scores[h][pi] = s;
         const cls = scoreClass(s, par);
         const lbl = scoreLabel(s, par);
-        const color = cls==='birdie'?'#52b788':cls==='eagle'?'#f59e0b':cls==='double'?'#ef4444':'#9ca3af';
+        const color = cls==='albatross'?'#c084fc':cls==='eagle'?'#f59e0b':cls==='birdie'?'#52b788':cls==='triple'?'#991b1b':cls==='double'?'#ef4444':'#9ca3af';
         return `
             <div class="score-row">
                 <div class="score-row-info">
@@ -664,13 +703,20 @@ function renderScoring() {
     }).join('');
 }
 
+function setScoreLimit(n) {
+    state.maxScore = n;
+    document.getElementById('limitBtn9').classList.toggle('active', n === 9);
+    document.getElementById('limitBtnInf').classList.toggle('active', n === Infinity);
+}
+
 function changeScore(pi, delta) {
     const h = state.currentHole;
     const par = state.pars[h];
-    const nv = Math.max(1, state.scores[h][pi] + delta);
+    const max = state.maxScore || 9;
+    const nv = Math.min(max, Math.max(1, state.scores[h][pi] + delta));
     state.scores[h][pi] = nv;
     const cls = scoreClass(nv, par);
-    const color = cls==='birdie'?'#52b788':cls==='eagle'?'#f59e0b':cls==='double'?'#ef4444':'#9ca3af';
+    const color = cls==='albatross'?'#c084fc':cls==='eagle'?'#f59e0b':cls==='birdie'?'#52b788':cls==='triple'?'#991b1b':cls==='double'?'#ef4444':'#9ca3af';
     const el = document.getElementById(`sv-${pi}`);
     el.textContent = nv; el.className = `cnt-val ${cls}`;
     const sl = document.getElementById(`sl-${pi}`);
@@ -710,7 +756,7 @@ function confirmHole() {
             result.bonus = 'cancel';
         } else if (level1 > level2) {
             // 勝ちペアのボーナスが上 → 反転
-            loser = reverseDigits(ps2);
+            loser = reversePairScore(s[p3], s[p4]);
             result.dispPs2 = loser;
             result.bonus = level1 >= 2 ? 'eagle' : 'birdie';
         }
@@ -724,7 +770,7 @@ function confirmHole() {
         if (level2 > 0 && level2 === level1) {
             result.bonus = 'cancel';
         } else if (level2 > level1) {
-            loser = reverseDigits(ps1);
+            loser = reversePairScore(s[p1], s[p2]);
             result.dispPs1 = loser;
             result.bonus = level2 >= 2 ? 'eagle' : 'birdie';
         }
@@ -862,6 +908,7 @@ function resetGame() {
     state.scores = Array(18).fill(null).map(() => [0, 0, 0, 0]);
     state.holeResults = [];
     state.currentHole = 0;
+    setScoreLimit(9); // スコア上限をデフォルト（9）に戻す
     document.getElementById('headerSub').textContent = 'プレイヤー設定';
     goToPage('page-setup');
 }
