@@ -306,7 +306,10 @@
         .rank-pos { font-size: 18px; font-weight: 800; width: 36px; color: var(--gray); }
         .rank-pos.first { color: #f59e0b; }
         .rank-name { flex: 1; font-size: 16px; font-weight: 600; }
-        .rank-pts { font-size: 18px; font-weight: 700; color: var(--green); }
+        .rank-pelika { font-size: 18px; font-weight: 700; }
+        .rank-pelika.pos { color: var(--green); }
+        .rank-pelika.neg { color: var(--red); }
+        .rank-pelika.zero { color: var(--gray); }
         .rank-gain {
             font-size: 13px; font-weight: 800;
             color: var(--red);
@@ -449,6 +452,10 @@
     <div id="holeResultBody"></div>
     <button class="btn" id="btnNext" onclick="goNext()">次のホールへ →</button>
     <button class="btn btn-outline" onclick="backToScoring()">← スコアを修正する</button>
+    <div class="card">
+        <h2>推移グラフ</h2>
+        <div id="graphBody"></div>
+    </div>
 </div>
 
 <!-- ページ5: 最終結果 -->
@@ -458,8 +465,8 @@
         <div id="finalRanking"></div>
     </div>
     <div class="card">
-        <h2>ペリカ計算</h2>
-        <div id="finalPelika"></div>
+        <h2>推移グラフ</h2>
+        <div id="finalGraph"></div>
     </div>
     <div class="card">
         <h2>ホール別履歴</h2>
@@ -810,25 +817,120 @@ function confirmHole() {
     goToPage('page-hole-result');
 }
 
-// ===== ペリカ計算 =====
-// 計算式: 各自のペリカ = 4 × 自分のpt − 全員の合計pt
-// 例) 30/20/10/0pt → 合計60 → 60/20/−20/−60ペリカ
-function buildPelikaHtml() {
-    const total = state.points.reduce((a, b) => a + b, 0);
-    const data = state.players
-        .map((name, i) => ({ name, pelika: 4 * state.points[i] - total }))
-        .sort((a, b) => b.pelika - a.pelika);
 
-    return data.map((d, i) => {
-        const cls = d.pelika > 0 ? 'pelika-pos' : d.pelika < 0 ? 'pelika-neg' : 'pelika-zero';
-        const sign = d.pelika > 0 ? '+' : '';
-        return `
-        <div class="pelika-row">
-            <div class="pelika-rank">${i + 1}位</div>
-            <div class="pelika-name">${d.name}</div>
-            <div class="pelika-val ${cls}">${sign}${d.pelika}ペリカ</div>
-        </div>`;
-    }).join('');
+// ===== 推移グラフ（SVG折れ線）=====
+const GRAPH_COLORS = ['#16a34a', '#2563eb', '#dc2626', '#d97706'];
+
+function buildSvgChart(title, datasets, xLabels) {
+    const W = 300, H = 150;
+    const ml = 36, mr = 10, mt = 14, mb = 22;
+    const cw = W - ml - mr, ch = H - mt - mb;
+    const n = xLabels.length - 1;
+
+    const allVals = datasets.flatMap(d => d.values);
+    let minV = Math.min(0, ...allVals);
+    let maxV = Math.max(0, ...allVals);
+    const rng = maxV - minV || 10;
+    minV -= rng * 0.08; maxV += rng * 0.08;
+
+    const xp = i => (ml + (n > 0 ? (i / n) * cw : cw / 2)).toFixed(1);
+    const yp = v => (mt + ch - ((v - minV) / (maxV - minV)) * ch).toFixed(1);
+
+    // 横グリッド線 & y軸ラベル
+    let grid = '';
+    for (let g = 0; g <= 4; g++) {
+        const v = minV + (g / 4) * (maxV - minV);
+        const y = yp(v);
+        grid += `<line x1="${ml}" x2="${W - mr}" y1="${y}" y2="${y}" stroke="#f3f4f6" stroke-width="1"/>`;
+        grid += `<text x="${ml - 3}" y="${(+y + 3.5).toFixed(1)}" text-anchor="end" font-size="8" fill="#9ca3af">${Math.round(v)}</text>`;
+    }
+    // ゼロライン（点線）
+    if (minV < 0 && maxV > 0) {
+        const zy = yp(0);
+        grid += `<line x1="${ml}" x2="${W - mr}" y1="${zy}" y2="${zy}" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4,3"/>`;
+    }
+
+    // x軸ラベル（間引き）
+    let xaxis = '';
+    xLabels.forEach((lbl, i) => {
+        if (n <= 9 || i === 0 || i === n || i % 3 === 0)
+            xaxis += `<text x="${xp(i)}" y="${H - mb + 13}" text-anchor="middle" font-size="8" fill="#9ca3af">${lbl}</text>`;
+    });
+
+    // 折れ線 & 最終点ラベル
+    let lines = '';
+    datasets.forEach(d => {
+        if (d.values.length < 2) return;
+        const pts = d.values.map((v, i) => `${xp(i)},${yp(v)}`).join(' ');
+        lines += `<polyline points="${pts}" fill="none" stroke="${d.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+        const li = d.values.length - 1;
+        const lx = +xp(li), ly = +yp(d.values[li]);
+        const last = d.values[li];
+        const sign = last > 0 ? '+' : '';
+        const anchor = lx > W - 55 ? 'end' : 'start';
+        const dx = lx > W - 55 ? -5 : 5;
+        lines += `<circle cx="${lx}" cy="${ly}" r="3" fill="${d.color}"/>`;
+        lines += `<text x="${(lx + dx).toFixed(1)}" y="${(ly - 5).toFixed(1)}" text-anchor="${anchor}" font-size="9" font-weight="700" fill="${d.color}">${sign}${last}</text>`;
+    });
+
+    return `<div style="margin-bottom:18px">
+        <div style="font-size:11px;font-weight:700;color:#6b7280;margin-bottom:2px;letter-spacing:.5px">${title}</div>
+        <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible">
+            ${grid}
+            <line x1="${ml}" x2="${ml}" y1="${mt}" y2="${H - mb}" stroke="#e5e7eb" stroke-width="1"/>
+            <line x1="${ml}" x2="${W - mr}" y1="${H - mb}" y2="${H - mb}" stroke="#e5e7eb" stroke-width="1"/>
+            ${xaxis}${lines}
+        </svg>
+    </div>`;
+}
+
+function buildGraphHtml() {
+    let pelika = [0, 0, 0, 0];
+    const cumPelika = [[0], [0], [0], [0]];
+    const xLabels   = ['S'];   // S = スタート（全員0）
+
+    for (let h = 0; h < 18; h++) {
+        const r = state.holeResults[h];
+        if (!r) break;
+        xLabels.push(h + 1);
+        if (r.winner !== 0) {
+            for (let i = 0; i < 4; i++) {
+                const win = r.winnerPlayers.includes(i);
+                pelika[i] += win ? r.pointsAwarded : -r.pointsAwarded;
+            }
+        }
+        for (let i = 0; i < 4; i++) {
+            cumPelika[i].push(pelika[i]);
+        }
+    }
+
+    if (xLabels.length <= 1)
+        return '<p style="color:#9ca3af;font-size:13px;text-align:center;padding:8px 0">ホールを確定すると表示されます</p>';
+
+    // 凡例
+    const legend = state.players.map((name, i) =>
+        `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:10px;font-size:11px;font-weight:600;color:#374151">` +
+        `<span style="width:16px;height:3px;background:${GRAPH_COLORS[i]};border-radius:2px;display:inline-block"></span>${name}</span>`
+    ).join('');
+
+    const pelDs = state.players.map((name, i) => ({ name, color: GRAPH_COLORS[i], values: cumPelika[i] }));
+
+    return `<div style="margin-bottom:10px">${legend}</div>
+        ${buildSvgChart('ポイント推移', pelDs, xLabels)}`;
+}
+
+// ===== ペリカ計算（ホールごとに積み上げ方式）=====
+// 勝ちホール: 勝者2人 +X ペリカ / 負けホール: 敗者2人 -X ペリカ
+function calcPelikaValues() {
+    const pelika = [0, 0, 0, 0];
+    state.holeResults.forEach(r => {
+        if (!r || r.winner === 0) return; // nullや引き分けはスキップ
+        const X = r.pointsAwarded;
+        for (let i = 0; i < 4; i++) {
+            pelika[i] += r.winnerPlayers.includes(i) ? X : -X;
+        }
+    });
+    return pelika;
 }
 
 // ===== ホール結果表示 =====
@@ -879,20 +981,25 @@ function renderHoleResult(r) {
             </div>
         </div>`;
 
-    const standings = state.players.map((name, i) => ({ name, pts: state.points[i], idx: i }))
-        .sort((a, b) => b.pts - a.pts);
+    const pelikaArr = calcPelikaValues();
+    const standings = state.players
+        .map((name, i) => ({ name, idx: i, pelika: pelikaArr[i] }))
+        .sort((a, b) => b.pelika - a.pelika);
 
     const rankingHtml = standings.map((s, i) => {
-        const gained = winnerPlayers.includes(s.idx) ? pointsAwarded : 0;
-        const gainBadge = gained > 0
-            ? `<div class="rank-gain">+${gained}pt ▲</div>`
+        const isWinner = winnerPlayers.includes(s.idx);
+        const pelikaChange = winner === 0 ? 0 : isWinner ? pointsAwarded : -pointsAwarded;
+        const gainBadge = pelikaChange !== 0
+            ? `<div class="rank-gain" style="${pelikaChange < 0 ? 'color:#2563eb;background:#eff6ff;border-color:#2563eb' : ''}">${pelikaChange > 0 ? '+' : ''}${pelikaChange}pt ${pelikaChange > 0 ? '▲' : '▼'}</div>`
             : '';
+        const pelikaSign = s.pelika > 0 ? '+' : '';
+        const pelikaCls = s.pelika > 0 ? 'rank-pelika pos' : s.pelika < 0 ? 'rank-pelika neg' : 'rank-pelika zero';
         return `
         <div class="ranking-row">
             <div class="rank-pos ${i === 0 ? 'first' : ''}">${i + 1}</div>
-            <div class="rank-name">${s.name}</div>
-            <div class="rank-pts">${s.pts}pt</div>
             ${gainBadge}
+            <div class="rank-name">${s.name}</div>
+            <div class="${pelikaCls}">${pelikaSign}${s.pelika}pt</div>
         </div>`;
     }).join('');
 
@@ -900,8 +1007,8 @@ function renderHoleResult(r) {
         ${bannerHtml}
         <div class="card"><h2>スコア詳細</h2>${compareHtml}</div>
         <div class="card"><h2>現在の順位</h2>${rankingHtml}</div>
-        <div class="card"><h2>ペリカ計算</h2>${buildPelikaHtml()}</div>
     `;
+    document.getElementById('graphBody').innerHTML = buildGraphHtml();
 }
 
 function goNext() {
@@ -922,16 +1029,22 @@ function backToScoring() {
 // ===== 最終結果 =====
 function showFinal() {
     document.getElementById('headerSub').textContent = '最終結果';
-    const standings = state.players.map((name, i) => ({ name, pts: state.points[i] }))
-        .sort((a, b) => b.pts - a.pts);
     const medals = ['🥇', '🥈', '🥉', '4位'];
-    document.getElementById('finalRanking').innerHTML = standings.map((s, i) => `
+    const pelikaFinal = calcPelikaValues();
+    const standings = state.players
+        .map((name, i) => ({ name, idx: i, pelika: pelikaFinal[i] }))
+        .sort((a, b) => b.pelika - a.pelika);
+    document.getElementById('finalRanking').innerHTML = standings.map((s, i) => {
+        const pelikaSign = s.pelika > 0 ? '+' : '';
+        const pelikaCls = s.pelika > 0 ? 'rank-pelika pos' : s.pelika < 0 ? 'rank-pelika neg' : 'rank-pelika zero';
+        return `
         <div class="ranking-row">
             <div class="rank-pos ${i === 0 ? 'first' : ''}">${medals[i]}</div>
             <div class="rank-name">${s.name}</div>
-            <div class="rank-pts">${s.pts}pt</div>
-        </div>`).join('');
-    document.getElementById('finalPelika').innerHTML = buildPelikaHtml();
+            <div class="${pelikaCls}">${pelikaSign}${s.pelika}pt</div>
+        </div>`;
+    }).join('');
+    document.getElementById('finalGraph').innerHTML = buildGraphHtml();
     document.getElementById('holeHistory').innerHTML = state.holeResults.map(r => {
         if (!r) return '';
         const p1n = r.pair1.map(i => state.players[i]).join('&');
